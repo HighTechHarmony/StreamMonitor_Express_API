@@ -10,8 +10,12 @@ const app = express()
 
 // const uri = "mongodb://localhost:27017"
 
-// Connect to the mongodb database as user streammon_api with password 
-const uri = "mongodb://localhost:27017"
+// read in the connection URI from external file
+const fs = require('fs');
+const uri = fs.readFileSync('./db.ini', 'utf8');
+console.log("MongoDB URI: " + uri)
+
+
 const client = new MongoClient(uri)
 
 interface UsersData {
@@ -121,8 +125,7 @@ async function connectToDatabase() {
         app.post("/api/stream_alerts", async (req: Request, res: Response) => {
             res.setHeader('Content-Type', 'application/json');
             try {
-                const stream_titles = req.body.stream_titles
-                console.log("Got a request for the last " + req.body.num_alerts + " stream alerts for stream titles: " + stream_titles)
+                console.log("Got a request for the last " + req.body.num_alerts + " stream alerts for stream titles: " + req.body.stream_titles)
             }
             catch (error) {
                 console.log(error)
