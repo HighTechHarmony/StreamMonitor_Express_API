@@ -71,22 +71,6 @@ async function connectToDatabase() {
         })
 
 
-        // This route is the action url that responds with a dump of users json
-        // app.get("/api/stream_reports", async (req: Request, res: Response) => {
-        //     res.setHeader('Content-Type', 'application/json');
-        //     try {
-        //         const streams = await db.collection("stream_reports").find({}).toArray()
-        //         // Response is the entire dump of streams' report data for each stream, with headers
-        //         res.json(streams)
-        //         // res.json(users.map((user: any) => ["username":user.username, user.enabled, user.pushover_id, user.pushover_token]
-            
-        //     }
-        //     catch (error) {
-        //         console.log(error)                
-        //         res.status(500).json({message: "Error retrieving stream reports"})
-        //     }
-        //     console.log("Got a request for stream reports")
-        // })
 
         // Given a list of stream titles, Returns the a list of stream reports for those streams
         // Takes a POST request with a list of stream titles in the body
@@ -210,55 +194,6 @@ async function connectToDatabase() {
             
         })
 
-        // This will return the image for a given stream title
-        // /api/stream_reports/example_stream_title/image
-        // app.get("/api/stream_image", async (req: Request, res: Response) => {
-        //     res.setHeader('Content-Type', 'application/json');
-        //     // console.log("Got a request for stream image for stream title: " + req.query.stream_title)
-        //     try {
-        //         const stream_title: string = req.query.stream_title as string;
-        //         const stream_image = await db.collection("stream_images").findOne({stream: stream_title})
-        //         if (stream_image) {
-        //             res.json(stream_image.data)
-        //         } else {
-        //             res.status(404).json({message: "Stream image not found for stream title: " + req.query.stream_title})
-        //         }
-        //     }
-        //     catch (error) {
-        //         console.log(error)
-        //         res.status(500).json({message: "Error retrieving stream image for stream title: " + req.params.stream_title})
-        //     }
-        //     console.log("Got a request for stream image for stream title: " + req.params.stream_title)
-        // });
-
-
-
-
-
-
-            // res.setHeader('Content-Type', 'application/json');
-            
-            // // If there are stream titles in the body, get the reports for those streams
-            // // console.log (req.body)
-            // if (req.body.stream_titles) {
-            //     try {
-            //         const stream_titles = req.body.stream_titles
-            //         const streams = await db.collection("stream_reports").find({title: {$in: stream_titles}}).toArray()
-            //         res.json(streams)
-            //     }
-            //     catch (error) {
-            //         console.log(error)
-            //         res.status(500).json({message: "Error retrieving stream reports for given stream titles"})
-            //     }
-            //     console.log("Got a request for stream reports for stream titles")
-            // } else {
-            //     res.status(400).json({message: "No stream titles provided in request body"})
-            // }
-            // console.log("Got a request for stream reports")
-        // })
-
-      
-
 
         // This will return all of the current images for all streams
         // /api/stream_images
@@ -282,15 +217,38 @@ async function connectToDatabase() {
 
 
 
+        // Update the global settings
+        // Takes a POST request with the new global settings in the body
+        app.post("/api/update_global_settings", async (req: Request, res: Response) => {
+            res.setHeader('Content-Type', 'application/json');
+            try {
+                console.log("Got a request to update global settings")
+                console.log(req.body)
+                // Update the global settings in the database
+                await db.collection("global_configs").updateOne({}, {$set: req.body})
+                res.json({message: "Global settings updated"})
+            }
+            catch (error) {
+                console.log(error)
+                res.status(500).json({message: "Error updating global settings"})
+            }
+        })
 
-        // This will return (up to) the last N alerts for the given stream ID
-        // /api/streams/alerts/stream_id/n
-        // app.get("/api/streams/alerts/stream_id/n", (req,res) => {
-            
-        // }
-
-        // This will envoke a restart of the monitoring system
-        // /api/backend_restart
+        // This will return the global settings
+        // /api/global_settings
+        app.get("/api/global_settings", async (req: Request, res: Response) => {
+            res.setHeader('Content-Type', 'application/json');
+            try {
+                const global_settings = await db.collection("global_configs").find({}).toArray()
+                // console.log("Got some global settings: ", global_settings)
+                res.json(global_settings)
+            }
+            catch (error) {
+                console.log(error)
+                res.status(500).json({message: "Error retrieving global settings"})
+            }
+            console.log("Got a request for global settings")
+        });
 
 
         // Start the server on port 5000, and here is a callback function that simply logs an output string
