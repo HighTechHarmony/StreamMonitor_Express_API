@@ -1,6 +1,6 @@
 import express from 'express';
 import { Request, Response } from 'express';
-import {MongoClient} from 'mongodb';
+import {MongoClient, ObjectId} from 'mongodb';
 // import body parser
 import bodyParser from 'body-parser';
 
@@ -249,6 +249,78 @@ async function connectToDatabase() {
             }
             console.log("Got a request for global settings")
         });
+
+
+        // Update the stream configs
+        // Takes a POST request with the new stream configs in the body
+        // /api/update_stream_configs
+        app.post("/api/update_stream_configs", async (req: Request, res: Response) => {
+            res.setHeader('Content-Type', 'application/json');
+            try {
+                console.log("Got a request to update stream configs, new configs:")
+                console.log(req.body)
+
+                // Do a reasonable job of ensuring this data is valid
+                // Check that the body is an array
+                if (!Array.isArray(req.body)) {
+                    res.status(400).json({message: "Invalid stream configs data"})
+                    console.log("Invalid stream configs data")
+                    return
+                }
+
+                // Check that each of the stream configs interface is represented in the submission
+                if (!req.body.every((config: any) => 
+                    config.hasOwnProperty("_id") &&
+                    config.hasOwnProperty("title") &&
+                    config.hasOwnProperty("uri") &&
+                    config.hasOwnProperty("audio") &&
+                    config.hasOwnProperty("enabled")
+                )) {
+                    res.status(400).json({message: "Incompatible stream config data"})
+                    console.log("Incompatible stream config data")
+                    return
+                }
+                
+                // Update each stream config in the database
+                for (const config of req.body) {
+                    const existingConfig = await db.collection("stream_configs").findOne({ _id: new ObjectId(config._id) });
+                    console.log("Existing config:", existingConfig);
+                
+                    console.log("Updating with:", {
+                        title: config.title,
+                        uri: config.uri,
+                        audio: config.audio,
+                        enabled: config.enabled
+                    });
+                
+                    const result = await db.collection("stream_configs").updateOne(
+                        { _id: new ObjectId(config._id) },
+                        {
+                            $set: {
+                                title: config.title,
+                                uri: config.uri,
+                                audio: config.audio,
+                                enabled: config.enabled
+                            }
+                        }
+                    );
+                    console.log("Update result:", result);
+                
+                    // Return an error if the entry was different but not updated
+                    if (result.matchedCount === 0) {
+                        res.status(400).json({message: "Stream config " + config.title + " not found"})
+                        console.log("Stream config " + config.title + " not found")
+                        return
+                    }
+                }
+                res.json({message: "Stream configs updated"})
+                console.log("Stream configs updated")
+            }
+            catch (error) {
+                console.log(error)
+                res.status(500).json({message: "Error updating stream configs"})
+            }
+        })
 
 
         // Start the server on port 5000, and here is a callback function that simply logs an output string
