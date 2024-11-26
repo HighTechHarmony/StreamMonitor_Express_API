@@ -23,12 +23,6 @@ interface UsersData {
   }
 
 
-// Sample json data: {"users": ["userOne", "userTwo", "userThree"]}
-const users_json: UsersData = {
-    users: ["userOne", "userTwo", "userThree","userFour"]
-}
-
-
 
 // Connect to the database
 async function connectToDatabase() {
@@ -134,6 +128,8 @@ async function connectToDatabase() {
         // Returns Base64 encoded images for the given stream titles, in the format of an object of data with string keys, being stream titles
         app.post("/api/stream_images", async (req: Request, res: Response) => {
             res.setHeader('Content-Type', 'application/json');
+
+            console.log("Got a request for stream images for stream titles: " + req.body.stream_titles)
             
 
             // Return the stream images for the given stream titles
@@ -144,20 +140,20 @@ async function connectToDatabase() {
 
                 // Create a new object with the stream title and the image data to be returned, so it is in the format:
                 /*
-  "StreamOne": {
-    "data": "binary_image_data_here",
-    "timestamp": "2023-10-01T12:00:00Z"
-  },
-  "StreamTwo": {
-    "data": "binary_image_data_here",
-    "timestamp": "2023-10-01T12:05:00Z"
-  },
-  "StreamThree": {
-    "data": "binary_image_data_here",
-    "timestamp": "2023-10-01T12:10:00Z"
-  }
-}
-*/              
+                    "StreamOne": {
+                        "data": "binary_image_data_here",
+                        "timestamp": "2023-10-01T12:00:00Z"
+                    },
+                    "StreamTwo": {
+                        "data": "binary_image_data_here",
+                        "timestamp": "2023-10-01T12:05:00Z"
+                    },
+                    "StreamThree": {
+                        "data": "binary_image_data_here",
+                        "timestamp": "2023-10-01T12:10:00Z"
+                    }
+                    }
+                */              
                 // stream_images is an object with the stream title as the key, 
                 // the image data converted to base64 encoding and timestamp as the values
                 let stream_images: { [key: string]: { data: string, timestamp: string } } = {}
@@ -179,12 +175,6 @@ async function connectToDatabase() {
                     
                 })
                 res.json(stream_images)
-
-                
-
-
-            
-            
                 // console.log (streams)
             }
             catch (error) {
@@ -193,28 +183,6 @@ async function connectToDatabase() {
             }
             
         })
-
-
-        // This will return all of the current images for all streams
-        // /api/stream_images
-        app.get("/api/stream_images", async (req: Request, res: Response) => {
-            res.setHeader('Content-Type', 'application/json');
-            try {
-                const stream_images = await db.collection("stream_images").find({}).toArray()
-                // console.log("Got some stream images: ", stream_images)
-                res.json(stream_images)
-            }
-            catch (error) {
-                console.log(error)
-                res.status(500).json({message: "Error retrieving stream images"})
-            }
-            console.log("Got a request for stream images")
-        });
-
-
-
-        
-
 
 
         // Update the global settings
@@ -320,7 +288,82 @@ async function connectToDatabase() {
                 console.log(error)
                 res.status(500).json({message: "Error updating stream configs"})
             }
-        })
+        })  // End of update_stream_configs
+
+        // Similar to the above, but for users
+        // Update the user configs
+        // Takes a POST request with the new user configs in the body
+        // /api/update_user_configs
+        
+        app.post("/api/update_users", async (req: Request, res: Response) => {
+            res.setHeader('Content-Type', 'application/json');
+            try {
+                console.log("Got a request to update user configs, new configs:")
+                console.log(req.body)
+
+                // Do a reasonable job of ensuring this data is valid
+                // Check that the body is an array
+                if (!Array.isArray(req.body)) {
+                    res.status(400).json({message: "Invalid user configs data"})
+                    console.log("Invalid user configs data")
+                    return
+                }
+
+                // Check that each of the user configs interface is represented in the submission
+                if (!req.body.every((config: any) => 
+                    config.hasOwnProperty("_id") &&
+                    config.hasOwnProperty("username") &&
+                    config.hasOwnProperty("enabled") &&
+                    config.hasOwnProperty("pushover_id") &&
+                    config.hasOwnProperty("pushover_token")
+                )) {
+                    res.status(400).json({message: "Incompatible user config data"})
+                    console.log("Incompatible user config data")
+                    return
+                }
+                
+                // Update each user config in the database
+                for (const config of req.body) {
+                    const existingConfig = await db.collection("users").findOne({ _id: new ObjectId(config._id) });
+                    console.log("Existing config:", existingConfig);
+                
+                    console.log("Updating with:", {
+                        username: config.username,
+                        enabled: config.enabled,
+                        pushover_id: config.pushover_id,
+                        pushover_token: config.pushover_token
+                    });
+                
+                    const result = await db.collection("users").updateOne(
+                        { _id: new ObjectId(config._id) },
+                        {
+                            $set: {
+                                username: config.username,
+                                enabled: config.enabled,
+                                pushover_id: config.pushover_id,
+                                pushover_token: config.pushover_token
+                            }
+                        }
+                    );
+                    console.log("Update result:", result);
+                
+                    // Return an error if the entry was different but not updated
+                    if (result.matchedCount === 0) {
+                        res.status(400).json({message: "User config " + config.username + " not found"})
+                        console.log("User config " + config.username + " not found")
+                        return
+                    }
+                }
+                res.json({message: "User configs updated"})
+                console.log("User configs updated")
+            }
+            catch (error) {
+                console.log(error)
+                res.status(500).json({message: "Error updating user configs"})
+            }
+        }
+        )  // End of update_user_configs
+
 
 
         // Start the server on port 5000, and here is a callback function that simply logs an output string
