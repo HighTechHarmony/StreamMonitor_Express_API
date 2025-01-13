@@ -1,53 +1,140 @@
 import express from 'express';
 import { Request, Response } from 'express';
-import {MongoClient, ObjectId} from 'mongodb';
-// import body parser
+import { MongoClient, ObjectId } from 'mongodb';
 import bodyParser from 'body-parser';
+import session from 'express-session';
+import bcrypt from 'bcrypt';
 
-// const express = require('express')
-
-const app = express()
-
-// const uri = "mongodb://localhost:27017"
-
-// read in the connection URI from external file
+const app = express();
 const fs = require('fs');
 const uri = fs.readFileSync('./db.ini', 'utf8');
-console.log("MongoDB URI: " + uri)
+console.log("MongoDB URI: " + uri);
 
+const client = new MongoClient(uri);
 
-const client = new MongoClient(uri)
+interface User {
+  _id?: ObjectId;
+  username: string;
+  password: string;
+  pushover_id?: string;
+  pushover_token?: string;
+  enabled: string;
+  isAdmin: boolean;
+}
 
 interface UsersData {
     users: string[];
+}
+
+declare module 'express-session' {
+  interface SessionData {
+    userId: string;
+    isAdmin: boolean;
   }
+}
 
-
-
+app.use(bodyParser.json());
+app.use(session({
+  secret: 'your_secret_key',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false } // Set to true if using HTTPS
+}));
 // Connect to the database
 async function connectToDatabase() {
     try {
         await client.connect();
         const db = client.db('streammon');
 
+        app.post('/api/register', async (req: Request, res: Response) => {
+          const { username, password } = req.body;
+          const hashedPassword = await bcrypt.hash(password, 10);
 
+          const newUser: User = {
+            username,
+            password: hashedPassword,
+            enabled: '1',
+            isAdmin: false
+          };
 
-        // This route is the action url that responds with a dump of users json
-        app.get("/api/users", async (req: Request, res: Response) => {
-            res.setHeader('Content-Type', 'application/json');
-            try {
-                const users = await db.collection("users").find({}).toArray()
-                // Response is the entire dump of users data for each user, with headers
-                res.json(users)
-                // res.json(users.map((user: any) => ["username":user.username, user.enabled, user.pushover_id, user.pushover_token]
-            
+          try {
+            await db.collection('users').insertOne(newUser);
+            res.status(201).json({ message: 'User registered successfully' });
+          } catch (error) {
+            console.log(error);
+            res.status(500).json({ message: 'Error registering user' });
+          }
+        });
+
+        app.post('/api/login', async (req: Request, res: Response) => {
+          const { username, password } = req.body;
+
+          try {
+            const user = await db.collection('users').findOne({ username });
+            if (user && await bcrypt.compare(password, user.password)) {
+              req.session.userId = user._id.toString();
+              req.session.isAdmin = user.isAdmin;
+              res.json({ message: 'Login successful' });
+            } else {
+              res.status(401).json({ message: 'Invalid username or password' });
             }
-            catch (error) {
-                console.log(error)                
-                res.status(500).json({message: "Error retrieving users"})
+          } catch (error) {
+            console.log(error);
+            res.status(500).json({ message: 'Error logging in' });
+          }
+        });
+
+        app.post('/api/logout', (req: Request, res: Response) => {
+          req.session.destroy((err) => {
+            if (err) {
+              return res.status(500).json({ message: 'Error logging out' });
             }
-            console.log("Got a request for users")
-        })
+            res.json({ message: 'Logout successful' });
+          });
+        });
+
+        app.post('/api/updatePushover', isAuthenticated, async (req: Request, res: Response) => {
+          const { pushover_id, pushover_token } = req.body;
+
+          try {
+            await db.collection('users').updateOne(
+              { _id: new ObjectId(req.session.userId) },
+              { $set: { pushover_id, pushover_token } }
+            );
+            res.json({ message: 'Pushover details updated successfully' });
+          } catch (error) {
+            console.log(error);
+            res.status(500).json({ message: 'Error updating pushover details' });
+          }
+        });
+
+        function isAuthenticated(req: Request, res: Response, next: Function) {
+          if (req.session.userId) {
+            next();
+          } else {
+            res.status(401).json({ message: 'Unauthorized' });
+          }
+        }
+
+        function isAdmin(req: Request, res: Response, next: Function) {
+          if (req.session.isAdmin) {
+            next();
+          } else {
+            res.status(403).json({ message: 'Forbidden' });
+          }
+        }
+
+        app.get('/api/users', isAuthenticated, isAdmin, async (req: Request, res: Response) => {
+          res.setHeader('Content-Type', 'application/json');
+          try {
+            const users = await db.collection('users').find({}).toArray();
+            res.json(users);
+          } catch (error) {
+            console.log(error);
+            res.status(500).json({ message: 'Error retrieving users' });
+          }
+          console.log('Got a request for users');
+        });
 
         // Returns the configs for the streams
         app.get("/api/stream_configs", async (req: Request, res: Response) => {
@@ -367,7 +454,7 @@ async function connectToDatabase() {
 
 
         // Start the server on port 5000, and here is a callback function that simply logs an output string
-        app.listen(5000, () => {console.log("Server started on port 5000")})
+        app.listen(3000, () => {console.log("Server started on port 3000")})
 
 
 // app.listen(5000, () => {console.log("Server started on port 5000")});
