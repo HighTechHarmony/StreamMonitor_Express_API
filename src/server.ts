@@ -455,9 +455,10 @@ async function connectToDatabase() {
 
         // Start the server on port 5000, and here is a callback function that simply logs an output string
         app.listen(3000, () => {console.log("Server started on port 3000")})
+        // app.listen(5000, () => {console.log("Server started on port 5000")});
 
 
-// app.listen(5000, () => {console.log("Server started on port 5000")});
+
 } catch (err) {
     console.error('Failed to connect to MongoDB', err);
     process.exit(1);
