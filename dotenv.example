@@ -1,0 +1,3 @@
+# Replace the URI and SESSION_SECRET with your own, and rename this file to .env
+MONGO_URI=mongodb://localhost:27017/streammon
+SESSION_SECRET=B7xkP+8mQ4UnOZ89+EVu4sX5TeQop3TYHi3DZRMNdQ9=
