@@ -24,6 +24,11 @@ router.post('/login', async (req, res) => {
   try {
     const user = await User.findOne({ username });
     if (user) {
+      if (user.enabled === "0") {
+        console.log("User is disabled");
+        res.status(403).send('User is disabled');
+        return;
+      }
       
       let passwordMatch = false;
       try {
