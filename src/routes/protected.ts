@@ -34,7 +34,7 @@ router.get("/api/users", authMiddleware, async (req: Request, res: Response) => 
 // Returns the configs for the streams
 router.get("/api/stream_configs", authMiddleware, async (req: Request, res:
     Response) => {
-    console.log("Got a request for stream configs");
+    console.log("Got a request for stream configs");    
 
     const db = await connectToDatabase(); // Get the database connection    
 
@@ -56,137 +56,160 @@ router.get("/api/stream_configs", authMiddleware, async (req: Request, res:
 
 
 
-    // Given a list of stream titles, Returns the a list of stream reports for those streams
-    // Takes a POST request with a list of stream titles in the body
+// Given a list of stream titles, Returns the a list of stream reports for those streams
+// Takes a POST request with a list of stream titles in the body
 
+router.post("/api/stream_reports", authMiddleware, async (req: Request, res: Response) => {
+    console.log("Got a request for stream reports");
+
+    const db = await connectToDatabase(); // Get the database connection    
+
+    res.setHeader('Content-Type', 'application/json');
+
+    try {
+        const stream_titles = req.body.stream_titles
+        // console.log("Got a request for stream reports for stream titles: " + stream_titles)
+    }
+    catch (error) {
+        console.log(error)
+        res.status(404).json({message: "Error retrieving stream reports for given stream titles"})
+    }
+
+    // Return the stream reports for the given stream titles
+    try {
+        const stream_titles = req.body.stream_titles
+        // const streams = await db.collection("stream_reports").find({title: {$in: stream_titles}}).toArray()
+        const streams = await StreamReport.find({title: {$in: stream_titles}})
+        res.json(streams)
+    }
+    catch (error) {
+        console.log(error)
+        res.status(500).json({message: "Error retrieving stream reports for given stream titles"})
+    }
+    
+})
+
+
+
+
+// Returns Base64 encoded images for the given stream titles, in the format of an object of
+// data with string keys, being stream titles
+router.post("/api/stream_images", authMiddleware, async (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+
+    console.log("Got a request for stream images for stream titles: " + req.body.stream_titles)
+    
+    const stream_images = await StreamImage.find({stream: {$in: req.body.stream_titles}})
     
 
-    router.post("/api/stream_reports", authMiddleware, async (req: Request, res: Response) => {
-        console.log("Got a request for stream reports");
+    // Return the stream images for the given stream titles
+    try {
+        // "title" is actually "stream" in the database
+        // Query the DB to get the stream images specified in the request body
+        // const streams = await db.collection("stream_images").find({stream: {$in: req.body.stream_titles}}).toArray()
+        const streams = await StreamImage.find({stream: {$in: req.body.stream_titles}});
+        // console.log("Got some stream images: ", streams);
 
-        const db = await connectToDatabase(); // Get the database connection    
 
-        res.setHeader('Content-Type', 'application/json');
+        // Create a new object with the stream title and the image data to be returned, so it is in the format:
+        /*
+            "StreamOne": {
+                "data": "binary_image_data_here",
+                "timestamp": "2023-10-01T12:00:00Z"
+            },
+            "StreamTwo": {
+                "data": "binary_image_data_here",
+                "timestamp": "2023-10-01T12:05:00Z"
+            },
+            "StreamThree": {
+                "data": "binary_image_data_here",
+                "timestamp": "2023-10-01T12:10:00Z"
+            }
+            }
+        */              
+        // stream_images is an object with the stream title as the key, 
+        // the image data converted to base64 encoding and timestamp as the values
+        let stream_images: { [key: string]: { data: string, timestamp: string } } = {}
+        streams.forEach((stream: any) => {                
+            let base64data = stream.data.toString('base64');                
+            stream_images[stream.stream] = {data: base64data, timestamp: stream.timestamp}            
+        })
+        res.json(stream_images)
+        // console.log (streams)
+    }
+    catch (error) {
+        console.log(error)
+        res.status(404).json({message: "Error retrieving stream images for given stream titles"})
+    }
+    
+})
 
-        try {
-            const stream_titles = req.body.stream_titles
-            // console.log("Got a request for stream reports for stream titles: " + stream_titles)
-        }
-        catch (error) {
-            console.log(error)
-            res.status(404).json({message: "Error retrieving stream reports for given stream titles"})
-        }
 
-        // Return the stream reports for the given stream titles
-        try {
-            const stream_titles = req.body.stream_titles
-            // const streams = await db.collection("stream_reports").find({title: {$in: stream_titles}}).toArray()
-            const streams = await StreamReport.find({title: {$in: stream_titles}})
-            res.json(streams)
-        }
-        catch (error) {
-            console.log(error)
-            res.status(500).json({message: "Error retrieving stream reports for given stream titles"})
-        }
+
+// Returns the most recent stream alerts for the given stream titles
+// Takes a POST request with a list of stream titles in the body
+// And a parameter of the number of alerts to return
+// And a parameter of a string to match in the alert or stream title
+
+router.get("/api/stream_alerts", authMiddleware, async (req: Request, res: Response) => {
+    console.log("Request body: ", req.body);
+    
+    res.setHeader('Content-Type', 'application/json');
+    
+    // Return the most recent N stream alerts for the given stream titles
+    try {
+
+        // POST version
+        // const stream_titles = req.body.stream_titles || [];
+        // const num_alerts = req.body.num_alerts || 10;
+        // const match_fragment = req.body.match_fragment || '';
+
+        // GET
+        const stream_titles = typeof req.query.stream_titles === 'string' ? req.query.stream_titles.split(',') : [];
+        const num_alerts = parseInt(req.query.num_alerts as string) || 10;
+        const match_fragment = req.query.match_fragment as string || '';
+
+        console.log("Number of alerts: ", num_alerts);
+        console.log("stream_titles: ", stream_titles);
+        console.log("match_fragment: ", match_fragment);
+
         
-    })
-
-
-
-
-    // Returns Base64 encoded images for the given stream titles, in the format of an object of
-    // data with string keys, being stream titles
-    router.post("/api/stream_images", authMiddleware, async (req: Request, res: Response) => {
-        res.setHeader('Content-Type', 'application/json');
-
-        console.log("Got a request for stream images for stream titles: " + req.body.stream_titles)
+        // The query should return alerts that contain match_fragment in either the stream title or the alert.
+        const query = match_fragment ? 
+            { 
+                $or: [
+                    { stream: { $regex: match_fragment, $options: 'i' } },
+                    { alert: { $regex: match_fragment, $options: 'i' } }
+                ],
+                stream: { $in: stream_titles }
+            } : 
+            { stream: { $in: stream_titles } };
         
-        // For now just return a random image from the data model
-        const stream_images = await StreamImage.find({stream: {$in: req.body.stream_titles}})
+        const streams = await StreamAlert.find(query).sort
+        ({timestamp: -1}).limit(num_alerts);
         
+        const streamsWithBase64Images = streams.map((stream: any) => {
+            // Convert the image data to base64 encoding
+            let base64data = stream.image.toString('base64');
+            // Return the stream alert with the image data converted to base64 encoding
+            return {
+                stream: stream.stream,
+                timestamp: stream.timestamp,
+                alert: stream.alert,
+                image: base64data
+            };
+        });
+        res.json(streamsWithBase64Images);
 
-        // Return the stream images for the given stream titles
-        try {
-            // "title" is actually "stream" in the database
-            // Query the DB to get the stream images specified in the request body
-            // const streams = await db.collection("stream_images").find({stream: {$in: req.body.stream_titles}}).toArray()
-            const streams = await StreamImage.find({stream: {$in: req.body.stream_titles}});
-            // console.log("Got some stream images: ", streams);
+    }
 
-
-            // Create a new object with the stream title and the image data to be returned, so it is in the format:
-            /*
-                "StreamOne": {
-                    "data": "binary_image_data_here",
-                    "timestamp": "2023-10-01T12:00:00Z"
-                },
-                "StreamTwo": {
-                    "data": "binary_image_data_here",
-                    "timestamp": "2023-10-01T12:05:00Z"
-                },
-                "StreamThree": {
-                    "data": "binary_image_data_here",
-                    "timestamp": "2023-10-01T12:10:00Z"
-                }
-                }
-            */              
-            // stream_images is an object with the stream title as the key, 
-            // the image data converted to base64 encoding and timestamp as the values
-            let stream_images: { [key: string]: { data: string, timestamp: string } } = {}
-            streams.forEach((stream: any) => {                
-                let base64data = stream.data.toString('base64');                
-                stream_images[stream.stream] = {data: base64data, timestamp: stream.timestamp}            
-            })
-            res.json(stream_images)
-            // console.log (streams)
-        }
-        catch (error) {
-            console.log(error)
-            res.status(404).json({message: "Error retrieving stream images for given stream titles"})
-        }
-        
-    })
+    catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Error retrieving stream alerts for given stream titles" });
+    }
+});          // End of stream_alerts
 
 
-
-//     // Returns the most recent stream alerts for the given stream titles
-//     // Takes a POST request with a list of stream titles in the body
-//     // And a parameter of the number of alerts to return
-    router.post("/api/stream_alerts", authMiddleware, async (req: Request, res: Response) => {
-        res.setHeader('Content-Type', 'application/json');
-        try {
-            console.log("Got a request for the last " + req.body.num_alerts + " stream alerts for stream titles: " + req.body.stream_titles)
-        }
-        catch (error) {
-            console.log(error)
-            res.status(500).json({message: "Error retrieving stream alerts for given stream titles"})
-        }
-
-        // Return the most recent N stream alerts for the given stream titles
-        try {
-            const stream_titles = req.body.stream_titles
-            const num_alerts = req.body.num_alerts
-            // const streams = await db.collection("stream_alerts").find({stream: {$in: stream_titles}}).sort({timestamp: -1}).limit(num_alerts).toArray()
-            const streams = await StreamAlert.find({stream: {$in: stream_titles}}).sort({timestamp: -1}).limit(num_alerts)
-            const streamsWithBase64Images = streams.map((stream: any) => {
-                // Convert the image data to base64 encoding
-                let base64data = stream.image.toString('base64');
-                // Return the stream alert with the image data converted to base64 encoding
-                return {
-                    stream: stream.stream,
-                    timestamp: stream.timestamp,
-                    alert: stream.alert,
-                    image: base64data
-                }
-            })
-            res.json(streamsWithBase64Images);
-        }
-        catch (error) {
-            console.log(error)
-            res.status(500).json({message: "Error retrieving stream alerts for given stream titles"})
-        }
-        
-    })
 
     // Update the global settings
     // Takes a POST request with the new global settings in the body
