@@ -83,7 +83,6 @@ router.post("/api/stream_reports", auth_1.authMiddleware, (req, res) => __awaite
 router.post("/api/stream_images", auth_1.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     res.setHeader('Content-Type', 'application/json');
     console.log("Got a request for stream images for stream titles: " + req.body.stream_titles);
-    // For now just return a random image from the data model
     const stream_images = yield StreamImage_1.StreamImage.find({ stream: { $in: req.body.stream_titles } });
     // Return the stream images for the given stream titles
     try {
@@ -123,24 +122,37 @@ router.post("/api/stream_images", auth_1.authMiddleware, (req, res) => __awaiter
         res.status(404).json({ message: "Error retrieving stream images for given stream titles" });
     }
 }));
-//     // Returns the most recent stream alerts for the given stream titles
-//     // Takes a POST request with a list of stream titles in the body
-//     // And a parameter of the number of alerts to return
-router.post("/api/stream_alerts", auth_1.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+// Returns the most recent stream alerts for the given stream titles
+// Takes a POST request with a list of stream titles in the body
+// And a parameter of the number of alerts to return
+// And a parameter of a string to match in the alert or stream title
+router.get("/api/stream_alerts", auth_1.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log("Request body: ", req.body);
     res.setHeader('Content-Type', 'application/json');
-    try {
-        console.log("Got a request for the last " + req.body.num_alerts + " stream alerts for stream titles: " + req.body.stream_titles);
-    }
-    catch (error) {
-        console.log(error);
-        res.status(500).json({ message: "Error retrieving stream alerts for given stream titles" });
-    }
     // Return the most recent N stream alerts for the given stream titles
     try {
-        const stream_titles = req.body.stream_titles;
-        const num_alerts = req.body.num_alerts;
-        // const streams = await db.collection("stream_alerts").find({stream: {$in: stream_titles}}).sort({timestamp: -1}).limit(num_alerts).toArray()
-        const streams = yield StreamAlert_1.StreamAlert.find({ stream: { $in: stream_titles } }).sort({ timestamp: -1 }).limit(num_alerts);
+        // POST version
+        // const stream_titles = req.body.stream_titles || [];
+        // const num_alerts = req.body.num_alerts || 10;
+        // const match_fragment = req.body.match_fragment || '';
+        // GET
+        const stream_titles = typeof req.query.stream_titles === 'string' ? req.query.stream_titles.split(',') : [];
+        const num_alerts = parseInt(req.query.num_alerts) || 10;
+        const match_fragment = req.query.match_fragment || '';
+        console.log("Number of alerts: ", num_alerts);
+        console.log("stream_titles: ", stream_titles);
+        console.log("match_fragment: ", match_fragment);
+        // The query should return alerts that contain match_fragment in either the stream title or the alert.
+        const query = match_fragment ?
+            {
+                $or: [
+                    { stream: { $regex: match_fragment, $options: 'i' } },
+                    { alert: { $regex: match_fragment, $options: 'i' } }
+                ],
+                stream: { $in: stream_titles }
+            } :
+            { stream: { $in: stream_titles } };
+        const streams = yield StreamAlert_1.StreamAlert.find(query).sort({ timestamp: -1 }).limit(num_alerts);
         const streamsWithBase64Images = streams.map((stream) => {
             // Convert the image data to base64 encoding
             let base64data = stream.image.toString('base64');
@@ -158,7 +170,7 @@ router.post("/api/stream_alerts", auth_1.authMiddleware, (req, res) => __awaiter
         console.log(error);
         res.status(500).json({ message: "Error retrieving stream alerts for given stream titles" });
     }
-}));
+})); // End of stream_alerts
 // Update the global settings
 // Takes a POST request with the new global settings in the body
 router.post("/api/update_global_settings", auth_1.authMiddleware, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
